@@ -32,15 +32,12 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never
 
-# Create non-root user
-RUN groupadd -r app && useradd -r -d /app -g app app
-
-# Set up the server application first
+# Set up the server application
 WORKDIR /app
 COPY ./server/pyproject.toml ./server/README.md ./server/uv.lock ./
 COPY ./server/graph_service ./graph_service
 
-# Install server dependencies (without cache mount for Railway compatibility)
+# Install server dependencies
 ARG INSTALL_FALKORDB=false
 RUN uv sync --frozen --no-dev && \
     if [ -n "$GRAPHITI_VERSION" ]; then \
@@ -57,19 +54,13 @@ RUN uv sync --frozen --no-dev && \
         fi; \
     fi
 
-# Change ownership to app user
-RUN chown -R app:app /app
-
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH"
-
-# Switch to non-root user
-USER app
 
 # Set port
 ENV PORT=8000
 EXPOSE $PORT
 
-# Use uv run for execution
+# Run as root (Railway handles this with RAILWAY_RUN_UID=0)
 CMD ["uv", "run", "uvicorn", "graph_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
