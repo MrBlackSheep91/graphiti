@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.9
+# syntax=docker/dockerfile:1
 FROM python:3.12-slim
 
 # Inherit build arguments for labels
@@ -40,12 +40,9 @@ WORKDIR /app
 COPY ./server/pyproject.toml ./server/README.md ./server/uv.lock ./
 COPY ./server/graph_service ./graph_service
 
-# Install server dependencies (without graphiti-core from lockfile)
-# Then install graphiti-core from PyPI at the desired version
-# This prevents the stale lockfile from pinning an old graphiti-core version
+# Install server dependencies (without cache mount for Railway compatibility)
 ARG INSTALL_FALKORDB=false
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev && \
+RUN uv sync --frozen --no-dev && \
     if [ -n "$GRAPHITI_VERSION" ]; then \
         if [ "$INSTALL_FALKORDB" = "true" ]; then \
             uv pip install --system --upgrade "graphiti-core[falkordb]==$GRAPHITI_VERSION"; \
