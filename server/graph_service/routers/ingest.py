@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from functools import partial
 
 from fastapi import APIRouter, status
@@ -13,25 +14,49 @@ class AsyncWorker:
     def __init__(self):
         self.queue = asyncio.Queue()
         self.task = None
+        self.jobs_processed = 0
+        self.jobs_failed = 0
 
     async def worker(self):
+        print("AsyncWorker: Worker loop started, waiting for jobs...")
         while True:
             try:
-                print(f'Got a job: (size of remaining queue: {self.queue.qsize()})')
                 job = await self.queue.get()
-                await job()
+                queue_size = self.queue.qsize()
+                print(f'AsyncWorker: Processing job #{self.jobs_processed + 1} (queue size: {queue_size})')
+                
+                try:
+                    await job()
+                    self.jobs_processed += 1
+                    print(f'AsyncWorker: Job completed successfully! Total processed: {self.jobs_processed}')
+                except Exception as e:
+                    self.jobs_failed += 1
+                    print(f'AsyncWorker ERROR: Job failed with exception: {type(e).__name__}: {e}')
+                    print(f'AsyncWorker ERROR: Traceback: {traceback.format_exc()}')
+                    print(f'AsyncWorker: Total failed: {self.jobs_failed}')
+                
             except asyncio.CancelledError:
+                print("AsyncWorker: Worker cancelled, shutting down...")
                 break
 
     async def start(self):
+        print("AsyncWorker: Starting worker task...")
         self.task = asyncio.create_task(self.worker())
+        print("AsyncWorker: Worker task created")
 
     async def stop(self):
+        print(f"AsyncWorker: Stopping... Processed: {self.jobs_processed}, Failed: {self.jobs_failed}")
         if self.task:
             self.task.cancel()
-            await self.task
+            try:
+                await self.task
+            except asyncio.CancelledError:
+                pass
+        remaining = 0
         while not self.queue.empty():
             self.queue.get_nowait()
+            remaining += 1
+        print(f"AsyncWorker: Stopped. Cleared {remaining} remaining jobs from queue.")
 
 
 async_worker = AsyncWorker()
@@ -49,6 +74,7 @@ async def add_messages(
     graphiti: ZepGraphitiDep,
 ):
     async def add_messages_task(m: Message):
+        print(f"add_messages_task: Starting for uuid={m.uuid}, group={request.group_id}")
         await graphiti.add_episode(
             uuid=m.uuid,
             group_id=request.group_id,
@@ -58,10 +84,12 @@ async def add_messages(
             source=EpisodeType.message,
             source_description=m.source_description,
         )
+        print(f"add_messages_task: Completed for uuid={m.uuid}")
 
     for m in request.messages:
         await async_worker.queue.put(partial(add_messages_task, m))
-
+    
+    print(f"add_messages: Queued {len(request.messages)} messages for group={request.group_id}")
     return Result(message='Messages added to processing queue', success=True)
 
 
