@@ -9,13 +9,6 @@ ARG VCS_REF
 # OCI image annotations
 LABEL org.opencontainers.image.title="Graphiti FastAPI Server"
 LABEL org.opencontainers.image.description="FastAPI server for Graphiti temporal knowledge graphs"
-LABEL org.opencontainers.image.version="${GRAPHITI_VERSION}"
-LABEL org.opencontainers.image.created="${BUILD_DATE}"
-LABEL org.opencontainers.image.revision="${VCS_REF}"
-LABEL org.opencontainers.image.vendor="Zep AI"
-LABEL org.opencontainers.image.source="https://github.com/getzep/graphiti"
-LABEL org.opencontainers.image.documentation="https://github.com/getzep/graphiti/tree/main/server"
-LABEL io.graphiti.core.version="${GRAPHITI_VERSION}"
 
 # Install uv using the installer script
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -54,7 +47,7 @@ RUN uv sync --frozen --no-dev && \
         fi; \
     fi
 
-# Set environment variables
+# Set environment variables - add venv to PATH
 ENV PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH"
 
@@ -62,5 +55,5 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PORT=8000
 EXPOSE $PORT
 
-# Run as root (Railway handles this with RAILWAY_RUN_UID=0)
-CMD ["uv", "run", "uvicorn", "graph_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use venv's uvicorn directly instead of uv run
+CMD ["/app/.venv/bin/uvicorn", "graph_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
