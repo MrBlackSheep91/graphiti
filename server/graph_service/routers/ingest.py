@@ -1,8 +1,7 @@
 import asyncio
-from contextlib import asynccontextmanager
 from functools import partial
 
-from fastapi import APIRouter, FastAPI, status
+from fastapi import APIRouter, status
 from graphiti_core.nodes import EpisodeType  # type: ignore
 from graphiti_core.utils.maintenance.graph_data_operations import clear_data  # type: ignore
 
@@ -38,14 +37,10 @@ class AsyncWorker:
 async_worker = AsyncWorker()
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    await async_worker.start()
-    yield
-    await async_worker.stop()
+# FIX: Router lifespan removed - it doesn't execute when router is included in main app
+# The async_worker is now started/stopped in main.py lifespan instead
 
-
-router = APIRouter(lifespan=lifespan)
+router = APIRouter()  # No lifespan - handled by main app
 
 
 @router.post('/messages', status_code=status.HTTP_202_ACCEPTED)
